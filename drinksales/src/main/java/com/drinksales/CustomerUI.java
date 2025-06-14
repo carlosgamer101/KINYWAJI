@@ -1,10 +1,10 @@
 package com.drinksales;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.List;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
@@ -20,17 +20,16 @@ import javafx.stage.Stage;
 public class CustomerUI extends Application {
     private static final String SERVER_ADDRESS = "localhost";
     private static final int SERVER_PORT = 12345;
-    private ObjectOutputStream out;
-    private ObjectInputStream in;
+    private BufferedReader in;
+    private PrintWriter out;
 
     @Override
     public void start(Stage primaryStage) {
         try {
             Socket socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
             System.out.println("Connected to server at " + SERVER_ADDRESS + ":" + SERVER_PORT);
-            out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            in = new ObjectInputStream(socket.getInputStream());
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         } catch (IOException e) {
             e.printStackTrace();
             Alert alert = new Alert(Alert.AlertType.ERROR, "Failed to connect to server: " + e.getMessage());
@@ -46,9 +45,9 @@ public class CustomerUI extends Application {
         Label nameLabel = new Label("Customer Name:");
         TextField nameField = new TextField();
         Label branchLabel = new Label("Branch:");
-        ComboBox<Branch> branchCombo = new ComboBox<>();
+        ComboBox<String> branchCombo = new ComboBox<>();
         Label drinkLabel = new Label("Drink:");
-        ComboBox<Drink> drinkCombo = new ComboBox<>();
+        ComboBox<String> drinkCombo = new ComboBox<>();
         Button orderButton = new Button("Place Order");
         Label statusLabel = new Label();
 
@@ -63,38 +62,31 @@ public class CustomerUI extends Application {
 
         try {
             System.out.println("Sending GET_BRANCHES");
-            out.writeObject("GET_BRANCHES");
-            out.flush();
-            Object branchesObj = in.readObject();
-            System.out.println("Received branches object: " + branchesObj);
-            if (branchesObj instanceof List) {
-                List<Branch> branches = (List<Branch>) branchesObj;
-                System.out.println("Branches received: " + branches);
-                branchCombo.getItems().addAll(branches);
-            } else {
-                System.out.println("Unexpected branches object type: " + branchesObj.getClass());
-                statusLabel.setText("Error: Invalid branches data received");
+            out.println("GET_BRANCHES");
+            String branchResponse = in.readLine();
+            System.out.println("Received branches: " + branchResponse);
+            if (branchResponse != null && branchResponse.startsWith("[")) {
+                branchResponse = branchResponse.substring(1, branchResponse.length() - 1);
+                String[] branches = branchResponse.split("\",\"");
+                for (String branch : branches) {
+                    branchCombo.getItems().add(branch.replace("\"", ""));
+                }
             }
 
             System.out.println("Sending GET_DRINKS");
-            out.writeObject("GET_DRINKS");
-            out.flush();
-            Object drinksObj = in.readObject();
-            System.out.println("Received drinks object: " + drinksObj);
-            if (drinksObj instanceof List) {
-                List<Drink> drinks = (List<Drink>) drinksObj;
-                System.out.println("Drinks received: " + drinks);
-                drinkCombo.getItems().addAll(drinks);
-            } else {
-                System.out.println("Unexpected drinks object type: " + drinksObj.getClass());
-                statusLabel.setText("Error: Invalid drinks data received");
+            out.println("GET_DRINKS");
+            String drinkResponse = in.readLine();
+            System.out.println("Received drinks: " + drinkResponse);
+            if (drinkResponse != null && drinkResponse.startsWith("[")) {
+                drinkResponse = drinkResponse.substring(1, drinkResponse.length() - 1);
+                String[] drinks = drinkResponse.split("\",\"");
+                for (String drink : drinks) {
+                    drinkCombo.getItems().add(drink.replace("\"", ""));
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
-            statusLabel.setText("Error fetching branches or drinks (IO): " + (e.getMessage() != null ? e.getMessage() : e.toString()));
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-            statusLabel.setText("Error fetching branches or drinks (ClassNotFound): " + e.getMessage());
+            statusLabel.setText("Error fetching branches or drinks: " + e.getMessage());
         }
 
         orderButton.setOnAction(e -> {
@@ -103,24 +95,20 @@ public class CustomerUI extends Application {
                 return;
             }
             try {
-                out.writeObject("PLACE_ORDER");
-                out.writeObject(nameField.getText());
-                out.writeObject(branchCombo.getValue().getId());
-                out.writeObject(drinkCombo.getValue().getId());
-                out.flush();
-                String response = (String) in.readObject();
+                out.println("PLACE_ORDER");
+                out.println(nameField.getText());
+                out.println(branchCombo.getItems().indexOf(branchCombo.getValue()) + 1); // Assume 1-based index
+                out.println(drinkCombo.getItems().indexOf(drinkCombo.getValue()) + 1);  // Assume 1-based index
+                String response = in.readLine();
                 statusLabel.setText(response);
-                Object alertsObj = in.readObject();
-                if (alertsObj instanceof List) {
-                    List<String> stockAlerts = (List<String>) alertsObj;
-                    if (!stockAlerts.isEmpty()) {
-                        Alert alert = new Alert(Alert.AlertType.WARNING);
-                        alert.setTitle("Stock Alert");
-                        alert.setContentText(String.join("\n", stockAlerts));
-                        alert.showAndWait();
-                    }
+                String alerts = in.readLine();
+                if (alerts != null && !alerts.equals("[]")) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Stock Alert");
+                    alert.setContentText(alerts.substring(1, alerts.length() - 1).replace("\"", ""));
+                    alert.showAndWait();
                 }
-            } catch (IOException | ClassNotFoundException ex) {
+            } catch (IOException ex) {
                 ex.printStackTrace();
                 statusLabel.setText("Error placing order: " + ex.getMessage());
             }
