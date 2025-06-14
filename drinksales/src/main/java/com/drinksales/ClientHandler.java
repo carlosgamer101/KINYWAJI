@@ -64,16 +64,37 @@ public class ClientHandler implements Runnable {
                         System.out.println("Sent drinks: " + drinkResponse);
                         break;
                     case "PLACE_ORDER":
-                        String customerName = in.readLine();
-                        int branchId = Integer.parseInt(in.readLine());
-                        int drinkId = Integer.parseInt(in.readLine());
-                        System.out.println("Processing order for " + customerName + ", branch: " + branchId + ", drink: " + drinkId);
-                        int customerId = db.addCustomer(customerName);
-                        db.placeOrder(customerId, branchId, drinkId);
-                        List<String> stockAlerts = db.checkStockLevels();
-                        out.println("Order placed successfully!");
-                        out.println(stockAlerts.isEmpty() ? "[]" : "[" + String.join(",", stockAlerts) + "]");
-                        System.out.println("Order response sent");
+                        try {
+                            String customerName = in.readLine();
+                            System.out.println("Received customer name: " + customerName);
+                            int branchId = Integer.parseInt(in.readLine());
+                            System.out.println("Received branch ID: " + branchId);
+                            int drinkId = Integer.parseInt(in.readLine());
+                            System.out.println("Received drink ID: " + drinkId);
+                            int quantity = Integer.parseInt(in.readLine());
+                            System.out.println("Received quantity: " + quantity);
+                            System.out.println("Processing order for " + customerName + ", branch: " + branchId + ", drink: " + drinkId + ", quantity: " + quantity);
+                            int customerId = db.addCustomer(customerName);
+                            System.out.println("Added customer ID: " + customerId);
+                            db.placeOrder(customerId, branchId, drinkId, quantity);
+                            System.out.println("Order placed in database");
+                            List<String> stockAlerts = db.checkStockLevels();
+                            System.out.println("Stock alerts: " + stockAlerts);
+                            out.println("Order placed successfully!");
+                            out.println(stockAlerts.isEmpty() ? "[]" : "[" + String.join(",", stockAlerts) + "]");
+                            System.out.println("Order response sent");
+                        } catch (SQLException e) {
+                            System.err.println("SQLException in PLACE_ORDER: " + e.getMessage());
+                            out.println("Error placing order: " + e.getMessage());
+                            e.printStackTrace();
+                        } catch (NumberFormatException e) {
+                            System.err.println("NumberFormatException in PLACE_ORDER: " + e.getMessage());
+                            out.println("Invalid data received");
+                        } catch (Exception e) {
+                            System.err.println("Unexpected exception in PLACE_ORDER: " + e.getMessage());
+                            out.println("Unexpected error: " + e.getMessage());
+                            e.printStackTrace();
+                        }
                         break;
                     case "GET_ORDERS_REPORT":
                         List<String> ordersReport = db.getOrdersReport();
@@ -88,9 +109,9 @@ public class ClientHandler implements Runnable {
                     case "ADD_STOCK":
                         int stockBranchId = Integer.parseInt(in.readLine());
                         int stockDrinkId = Integer.parseInt(in.readLine());
-                        int quantity = Integer.parseInt(in.readLine());
-                        System.out.println("Adding stock: branch=" + stockBranchId + ", drink=" + stockDrinkId + ", quantity=" + quantity);
-                        db.addStock(stockBranchId, stockDrinkId, quantity);
+                        int stockQuantity = Integer.parseInt(in.readLine());
+                        System.out.println("Adding stock: branch=" + stockBranchId + ", drink=" + stockDrinkId + ", quantity=" + stockQuantity);
+                        db.addStock(stockBranchId, stockDrinkId, stockQuantity);
                         out.println("Stock updated successfully!");
                         System.out.println("Stock update response sent");
                         break;
@@ -98,6 +119,11 @@ public class ClientHandler implements Runnable {
                         List<String> stockNotifications = db.checkStockLevels();
                         out.println("[" + String.join(",", stockNotifications) + "]");
                         System.out.println("Stock alerts sent");
+                        break;
+                    case "GET_ALL_ORDERS":
+                        List<String> allOrders = db.getAllOrders();
+                        out.println("[" + String.join(",", allOrders) + "]");
+                        System.out.println("All orders sent: " + allOrders);
                         break;
                     default:
                         System.err.println("Unknown command: " + command);
@@ -109,10 +135,7 @@ public class ClientHandler implements Runnable {
             System.err.println("IOException in ClientHandler: " + e.getMessage());
             e.printStackTrace();
         } catch (SQLException e) {
-            System.err.println("SQLException in ClientHandler: " + e.getMessage());
-            e.printStackTrace();
-        } catch (NumberFormatException e) {
-            System.err.println("NumberFormatException in ClientHandler: " + e.getMessage());
+            // TODO Auto-generated catch block
             e.printStackTrace();
         } finally {
             try {

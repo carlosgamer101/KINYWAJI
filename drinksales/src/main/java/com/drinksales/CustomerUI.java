@@ -1,21 +1,15 @@
 package com.drinksales;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
-
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.stage.Stage;
+import java.io.*;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CustomerUI extends Application {
     private static final String SERVER_ADDRESS = "localhost";
@@ -48,6 +42,8 @@ public class CustomerUI extends Application {
         ComboBox<String> branchCombo = new ComboBox<>();
         Label drinkLabel = new Label("Drink:");
         ComboBox<String> drinkCombo = new ComboBox<>();
+        Label quantityLabel = new Label("Quantity:");
+        TextField quantityField = new TextField();
         Button orderButton = new Button("Place Order");
         Label statusLabel = new Label();
 
@@ -57,32 +53,38 @@ public class CustomerUI extends Application {
         grid.add(branchCombo, 1, 1);
         grid.add(drinkLabel, 0, 2);
         grid.add(drinkCombo, 1, 2);
-        grid.add(orderButton, 1, 3);
-        grid.add(statusLabel, 1, 4);
+        grid.add(quantityLabel, 0, 3);
+        grid.add(quantityField, 1, 3);
+        grid.add(orderButton, 1, 4);
+        grid.add(statusLabel, 1, 5);
 
         try {
             System.out.println("Sending GET_BRANCHES");
             out.println("GET_BRANCHES");
             String branchResponse = in.readLine();
             System.out.println("Received branches: " + branchResponse);
-            if (branchResponse != null && branchResponse.startsWith("[")) {
+            if (branchResponse != null && !branchResponse.trim().isEmpty() && branchResponse.startsWith("[")) {
                 branchResponse = branchResponse.substring(1, branchResponse.length() - 1);
                 String[] branches = branchResponse.split("\",\"");
                 for (String branch : branches) {
-                    branchCombo.getItems().add(branch.replace("\"", ""));
+                    branchCombo.getItems().add(branch.replace("\"", "").trim());
                 }
+            } else {
+                System.out.println("No valid branch data received");
             }
 
             System.out.println("Sending GET_DRINKS");
             out.println("GET_DRINKS");
             String drinkResponse = in.readLine();
             System.out.println("Received drinks: " + drinkResponse);
-            if (drinkResponse != null && drinkResponse.startsWith("[")) {
+            if (drinkResponse != null && !drinkResponse.trim().isEmpty() && drinkResponse.startsWith("[")) {
                 drinkResponse = drinkResponse.substring(1, drinkResponse.length() - 1);
                 String[] drinks = drinkResponse.split("\",\"");
                 for (String drink : drinks) {
-                    drinkCombo.getItems().add(drink.replace("\"", ""));
+                    drinkCombo.getItems().add(drink.replace("\"", "").trim());
                 }
+            } else {
+                System.out.println("No valid drink data received");
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -90,31 +92,48 @@ public class CustomerUI extends Application {
         }
 
         orderButton.setOnAction(e -> {
-            if (nameField.getText().isEmpty() || branchCombo.getValue() == null || drinkCombo.getValue() == null) {
+            System.out.println("Order button clicked");
+            if (nameField.getText().isEmpty() || branchCombo.getValue() == null || drinkCombo.getValue() == null || quantityField.getText().isEmpty()) {
                 statusLabel.setText("Please fill all fields.");
+                System.out.println("Validation failed: Missing fields");
                 return;
             }
             try {
+                int quantity = Integer.parseInt(quantityField.getText());
+                if (quantity <= 0) {
+                    statusLabel.setText("Quantity must be greater than 0.");
+                    System.out.println("Validation failed: Invalid quantity");
+                    return;
+                }
+                System.out.println("Sending PLACE_ORDER command");
                 out.println("PLACE_ORDER");
                 out.println(nameField.getText());
-                out.println(branchCombo.getItems().indexOf(branchCombo.getValue()) + 1); // Assume 1-based index
-                out.println(drinkCombo.getItems().indexOf(drinkCombo.getValue()) + 1);  // Assume 1-based index
+                out.println(branchCombo.getItems().indexOf(branchCombo.getValue()) + 1); // 1-based index
+                out.println(drinkCombo.getItems().indexOf(drinkCombo.getValue()) + 1);  // 1-based index
+                out.println(quantity); // Send quantity
+                System.out.println("Waiting for server response");
                 String response = in.readLine();
+                System.out.println("Received server response: " + response);
                 statusLabel.setText(response);
                 String alerts = in.readLine();
+                System.out.println("Received stock alerts: " + alerts);
                 if (alerts != null && !alerts.equals("[]")) {
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Stock Alert");
                     alert.setContentText(alerts.substring(1, alerts.length() - 1).replace("\"", ""));
                     alert.showAndWait();
                 }
+            } catch (NumberFormatException ex) {
+                statusLabel.setText("Quantity must be a number.");
+                System.out.println("Exception: Invalid number format - " + ex.getMessage());
             } catch (IOException ex) {
-                ex.printStackTrace();
                 statusLabel.setText("Error placing order: " + ex.getMessage());
+                System.out.println("Exception: IO error - " + ex.getMessage());
+                ex.printStackTrace();
             }
         });
 
-        Scene scene = new Scene(grid, 400, 250);
+        Scene scene = new Scene(grid, 400, 300);
         primaryStage.setTitle("Customer Order System");
         primaryStage.setScene(scene);
         primaryStage.show();

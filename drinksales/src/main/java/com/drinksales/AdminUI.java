@@ -45,6 +45,7 @@ public class AdminUI extends Application {
 
         Button ordersReportButton = new Button("View Orders Report");
         Button salesReportButton = new Button("View Sales Report");
+        Button allOrdersButton = new Button("View All Orders");
         Label branchLabel = new Label("Branch:");
         ComboBox<String> branchCombo = new ComboBox<>();
         Label drinkLabel = new Label("Drink:");
@@ -57,39 +58,44 @@ public class AdminUI extends Application {
 
         grid.add(ordersReportButton, 0, 0, 2, 1);
         grid.add(salesReportButton, 0, 1, 2, 1);
-        grid.add(branchLabel, 0, 2);
-        grid.add(branchCombo, 1, 2);
-        grid.add(drinkLabel, 0, 3);
-        grid.add(drinkCombo, 1, 3);
-        grid.add(quantityLabel, 0, 4);
-        grid.add(quantityField, 1, 4);
-        grid.add(addStockButton, 1, 5);
-        grid.add(checkStockButton, 0, 6, 2, 1);
-        grid.add(statusLabel, 0, 7, 2, 1);
+        grid.add(allOrdersButton, 0, 2, 2, 1);
+        grid.add(branchLabel, 0, 3);
+        grid.add(branchCombo, 1, 3);
+        grid.add(drinkLabel, 0, 4);
+        grid.add(drinkCombo, 1, 4);
+        grid.add(quantityLabel, 0, 5);
+        grid.add(quantityField, 1, 5);
+        grid.add(addStockButton, 1, 6);
+        grid.add(checkStockButton, 0, 7, 2, 1);
+        grid.add(statusLabel, 0, 8, 2, 1);
 
         try {
             System.out.println("Sending GET_BRANCHES");
             out.println("GET_BRANCHES");
             String branchResponse = in.readLine();
             System.out.println("Received branches: " + branchResponse);
-            if (branchResponse != null && branchResponse.startsWith("[")) {
+            if (branchResponse != null && !branchResponse.trim().isEmpty() && branchResponse.startsWith("[")) {
                 branchResponse = branchResponse.substring(1, branchResponse.length() - 1);
                 String[] branches = branchResponse.split("\",\"");
                 for (String branch : branches) {
-                    branchCombo.getItems().add(branch.replace("\"", ""));
+                    branchCombo.getItems().add(branch.replace("\"", "").trim());
                 }
+            } else {
+                System.out.println("No valid branch data received");
             }
 
             System.out.println("Sending GET_DRINKS");
             out.println("GET_DRINKS");
             String drinkResponse = in.readLine();
             System.out.println("Received drinks: " + drinkResponse);
-            if (drinkResponse != null && drinkResponse.startsWith("[")) {
+            if (drinkResponse != null && !drinkResponse.trim().isEmpty() && drinkResponse.startsWith("[")) {
                 drinkResponse = drinkResponse.substring(1, drinkResponse.length() - 1);
                 String[] drinks = drinkResponse.split("\",\"");
                 for (String drink : drinks) {
-                    drinkCombo.getItems().add(drink.replace("\"", ""));
+                    drinkCombo.getItems().add(drink.replace("\"", "").trim());
                 }
+            } else {
+                System.out.println("No valid drink data received");
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -125,6 +131,28 @@ public class AdminUI extends Application {
             } catch (IOException ex) {
                 ex.printStackTrace();
                 statusLabel.setText("Error fetching sales report: " + ex.getMessage());
+            }
+        });
+
+        allOrdersButton.setOnAction(e -> {
+            try {
+                out.println("GET_ALL_ORDERS");
+                String allOrdersResponse = in.readLine();
+                System.out.println("Received all orders: " + allOrdersResponse);
+                if (allOrdersResponse != null && !allOrdersResponse.trim().isEmpty() && allOrdersResponse.startsWith("[")) {
+                    allOrdersResponse = allOrdersResponse.substring(1, allOrdersResponse.length() - 1).replace("\"", "");
+                    TextArea textArea = new TextArea(allOrdersResponse);
+                    textArea.setEditable(false);
+                    Stage ordersStage = new Stage();
+                    ordersStage.setScene(new Scene(textArea, 400, 400));
+                    ordersStage.setTitle("All Orders");
+                    ordersStage.show();
+                } else {
+                    statusLabel.setText("No orders found.");
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                statusLabel.setText("Error fetching all orders: " + ex.getMessage());
             }
         });
 
@@ -166,7 +194,7 @@ public class AdminUI extends Application {
             }
         });
 
-        Scene scene = new Scene(grid, 400, 400);
+        Scene scene = new Scene(grid, 400, 500);
         primaryStage.setTitle("Admin Control Panel");
         primaryStage.setScene(scene);
         primaryStage.show();
